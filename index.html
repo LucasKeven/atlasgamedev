@@ -1,0 +1,390 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Atlas do Desenvolvimento de Jogos</title>
+<meta name="description" content="Um índice de todas as áreas, disciplinas e termos da indústria de jogos.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Anton&family=Archivo:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+  <!-- ============ MASTHEAD ============ -->
+  <header class="masthead">
+    <div class="masthead__inner">
+      <div class="masthead__kicker">
+        <span class="dot"></span>
+        <span class="eyebrow">Índice de Carreiras da Indústria de Jogos · ed. 2025</span>
+      </div>
+      <h1 class="display">Atlas do<br>Desenvolvimento<br>de Jogos</h1>
+      <p class="masthead__sub">Um mapa de <span class="strike">quase</span> todas as áreas</p>
+      <div class="masthead__meta">
+        <span class="stat"><b id="stat-cats">—</b> <span class="eyebrow">disciplinas</span></span>
+        <span class="stat"><b id="stat-areas">—</b> <span class="eyebrow">áreas &amp; termos</span></span>
+        <span class="stat"><b id="stat-fams">5</b> <span class="eyebrow">famílias</span></span>
+      </div>
+    </div>
+  </header>
+
+  <!-- ============ LAYOUT ============ -->
+  <div class="layout">
+
+    <!-- SIDEBAR: busca + índice -->
+    <aside class="sidebar">
+      <div class="search" id="search">
+        <input id="search-input" type="search" autocomplete="off" spellcheck="false"
+               placeholder="Buscar área ou termo…" aria-label="Buscar área ou termo">
+        <span class="search__icon">⌕</span>
+        <button class="search__clear" id="search-clear" aria-label="Limpar busca">×</button>
+      </div>
+      <nav class="nav" id="nav" aria-label="Disciplinas"></nav>
+    </aside>
+
+    <!-- CONTEÚDO -->
+    <main class="content" id="content"></main>
+  </div>
+
+  <!-- ============ RODAPÉ ============ -->
+  <footer class="foot">
+    <span>por <a href="https://www.linkedin.com/in/lucas-keven/" target="_blank" rel="noopener">Lucas Keven</a> · Savant Game Studio</span>
+  </footer>
+
+  <!-- ============ DADOS + APP ============ -->
+  <script src="data.js"></script>
+  <script>
+  (function () {
+    "use strict";
+
+    /* ---------- referências de DOM ---------- */
+    const $nav     = document.getElementById("nav");
+    const $content = document.getElementById("content");
+    const $input   = document.getElementById("search-input");
+    const $search  = document.getElementById("search");
+    const $clear   = document.getElementById("search-clear");
+
+    /* ---------- estado ---------- */
+    const state = { query: "", selected: null };
+
+    /* ---------- helpers ---------- */
+    const famColor = (f) => FAMILIES[f] ? FAMILIES[f].color : "var(--ink)";
+    const esc = (s) => String(s).replace(/[&<>"]/g, (c) =>
+      ({ "&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;" }[c]));
+    // remove acentos p/ busca tolerante
+    const norm = (s) => s.toLowerCase()
+      .normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+
+    function highlight(text, q) {
+      if (!q) return esc(text);
+      const nt = norm(text), nq = norm(q);
+      const i = nt.indexOf(nq);
+      if (i === -1) return esc(text);
+      return esc(text.slice(0, i)) + "<mark>" +
+             esc(text.slice(i, i + q.length)) + "</mark>" +
+             esc(text.slice(i + q.length));
+    }
+
+    /* ---------- métricas do cabeçalho ---------- */
+    const totalAreas = CATEGORIES.reduce((s, c) => s + c.areas.length, 0);
+    document.getElementById("stat-cats").textContent  = CATEGORIES.length;
+    document.getElementById("stat-areas").textContent = totalAreas;
+
+    /* agrupa categorias por família, na ordem de FAMILIES */
+    function byFamily() {
+      return Object.keys(FAMILIES).map((key) => ({
+        key,
+        ...FAMILIES[key],
+        cats: CATEGORIES.filter((c) => c.family === key),
+      }));
+    }
+
+    /* =========================================================
+       NAV (sidebar)
+       ========================================================= */
+    function renderNav() {
+      let html = `<button class="nav__item nav__item--home" data-home="1">
+          <span class="num" aria-hidden="true">≡</span>
+          <span>Índice</span>
+        </button>
+        <div class="nav__divider"></div>`;
+      byFamily().forEach((fam) => {
+        html += `<div class="nav__family">
+          <div class="nav__family-label">
+            <span class="swatch" style="background:${fam.color}"></span>${esc(fam.label)}
+          </div>`;
+        fam.cats.forEach((c) => {
+          html += `<button class="nav__item" data-id="${c.id}">
+            <span class="num">${String(c.n).padStart(2,"0")}</span>
+            <span>${esc(c.name)}</span>
+            <span class="count">${c.areas.length}</span>
+          </button>`;
+        });
+        html += `</div>`;
+      });
+      $nav.innerHTML = html;
+      $nav.querySelectorAll(".nav__item[data-id]").forEach((b) =>
+        b.addEventListener("click", () => select(b.dataset.id)));
+      $nav.querySelector("[data-home]").addEventListener("click", () => {
+        state.query = ""; $input.value = "";
+        $search.classList.remove("search--has-value");
+        goOverview();
+      });
+      markActiveNav();
+    }
+    function markActiveNav() {
+      const onIndex = !state.selected && !state.query;
+      $nav.querySelectorAll(".nav__item").forEach((b) => {
+        if (b.dataset.home) b.classList.toggle("is-active", onIndex);
+        else b.classList.toggle("is-active", b.dataset.id === state.selected);
+      });
+    }
+
+    /* =========================================================
+       OVERVIEW — todas as categorias por família
+       ========================================================= */
+    function renderOverview() {
+      let html = `<div class="overview__head">
+        <span class="eyebrow">Sumário</span>
+        <h2 class="display">As 5 famílias do desenvolvimento</h2>
+      </div>`;
+
+      byFamily().forEach((fam) => {
+        html += `<section class="fam-block" style="--fam:${fam.color}">
+          <div class="fam-block__head">
+            <span class="fam-block__bar" style="background:${fam.color}"></span>
+            <h3>${esc(fam.label)}</h3>
+            <span class="c eyebrow">${fam.cats.length} disciplinas</span>
+          </div>
+          <div class="cat-grid">`;
+        fam.cats.forEach((c) => {
+          html += `<button class="cat-card" data-id="${c.id}" style="--fam:${fam.color}">
+            <div class="cat-card__top">
+              <span class="cat-card__num">${String(c.n).padStart(2,"0")}</span>
+              <span class="cat-card__count">${c.areas.length} áreas</span>
+            </div>
+            <h4>${esc(c.name)}</h4>
+            <div class="cat-card__en">${esc(c.nameEn)}</div>
+            <p class="cat-card__desc">${esc(c.desc)}</p>
+          </button>`;
+        });
+        html += `</div></section>`;
+      });
+
+      $content.innerHTML = html;
+      $content.querySelectorAll(".cat-card").forEach((b) =>
+        b.addEventListener("click", () => select(b.dataset.id)));
+    }
+
+    /* =========================================================
+       CATEGORIA (detalhe)
+       ========================================================= */
+    function renderCategory(c) {
+      const color = famColor(c.family);
+      const fam = FAMILIES[c.family];
+
+      // normaliza itens: "texto" → { name }  (permite { name, desc } no futuro)
+      const norm0 = (it) => typeof it === "string" ? { name: it } : it;
+      const groups = {
+        areas:    (c.areas    || []).map(norm0),
+        skills:   (c.skills   || []).map(norm0),
+        software: (c.software || []).map(norm0),
+      };
+      const chips = (key, cls) => groups[key].map((it, i) =>
+        `<button class="${cls} chip" data-g="${key}" data-i="${i}">${esc(it.name)}</button>`).join("");
+
+      const areasHtml = chips("areas", "area");
+
+      let skillsHtml = "";
+      if (groups.skills.length) {
+        skillsHtml = section("Habilidades", groups.skills.length,
+          `<div class="pills">${chips("skills","pill")}</div>`);
+      }
+
+      let swHtml = "";
+      if (groups.software.length) {
+        swHtml = section("Ferramentas & Software", groups.software.length,
+          `<div class="pills">${chips("software","pill pill--soft")}</div>`);
+      }
+
+      const filled = groups.skills.length || groups.software.length;
+      const wip = `<p class="wip"><span class="wip__mark" aria-hidden="true"></span>Em construção</p>`;
+      const note = filled ? "" :
+        `<section class="section">
+          <div class="section__label">Habilidades</div>
+          ${wip}
+        </section>
+        <section class="section">
+          <div class="section__label">Ferramentas &amp; Software</div>
+          ${wip}
+        </section>`;
+
+      $content.innerHTML = `<div class="cat" style="--fam:${color}">
+        <button class="back" id="back">← Sumário</button>
+        <div class="cat__header">
+          <span class="cat__tag"><span class="swatch"></span>${esc(fam.label)}</span>
+          <div class="cat__title-row">
+            <span class="cat__num">${String(c.n).padStart(2,"0")}</span>
+            <div>
+              <h2 class="display">${esc(c.name)}</h2>
+              <div class="cat__en">${esc(c.nameEn)}${c.aka?` &nbsp;·&nbsp; <span class="cat__aka">também: ${esc(c.aka)}</span>`:""}</div>
+            </div>
+          </div>
+          <p class="cat__desc">${esc(c.desc)}</p>
+        </div>
+
+        ${section("Áreas & Termos", groups.areas.length, `<div class="areas">${areasHtml}</div>`)}
+        ${skillsHtml}
+        ${swHtml}
+        ${note}
+      </div>`;
+
+      document.getElementById("back").addEventListener("click", goOverview);
+
+      // cada item (área, habilidade, ferramenta) abre sua descrição — ou [Em Construção]
+      $content.querySelectorAll(".chip").forEach((btn) => {
+        btn.addEventListener("click", () => {
+          const open = btn.classList.toggle("is-open");
+          const next = btn.nextElementSibling;
+          if (open) {
+            const it = groups[btn.dataset.g][+btn.dataset.i];
+            const d = document.createElement("div");
+            if (it.desc) {
+              d.className = "chip-desc";
+              d.textContent = it.desc;
+            } else {
+              d.className = "chip-desc chip-desc--wip";
+              d.textContent = "[Em Construção]";
+            }
+            btn.after(d);
+          } else if (next && next.classList.contains("chip-desc")) {
+            next.remove();
+          }
+        });
+      });
+
+      window.scrollTo({ top: 0, behavior: prefersReduced() ? "auto" : "smooth" });
+    }
+
+    function section(label, count, inner) {
+      return `<section class="section">
+        <div class="section__label">${esc(label)}<span class="c">${count}</span></div>
+        ${inner}
+      </section>`;
+    }
+
+    /* =========================================================
+       BUSCA / RESULTADOS
+       ========================================================= */
+    function renderResults(q) {
+      const nq = norm(q);
+      const hits = [];
+      CATEGORIES.forEach((c) => {
+        const nameMatch = norm(c.name).includes(nq) || norm(c.nameEn).includes(nq);
+        const areas = c.areas.filter((a) => norm(a.name).includes(nq));
+        if (nameMatch || areas.length) {
+          hits.push({ c, areas: areas.length ? areas : c.areas, nameMatch });
+        }
+      });
+
+      const totalHits = hits.reduce((s,h)=>s+h.areas.length,0);
+
+      if (!hits.length) {
+        $content.innerHTML = `<div class="empty">
+          <b>Nada encontrado</b>
+          Nenhuma área ou termo corresponde a “${esc(q)}”. Tente outro termo.
+        </div>`;
+        return;
+      }
+
+      let html = `<div class="results__head">
+        <span class="eyebrow">${totalHits} resultado(s) em ${hits.length} disciplina(s)</span>
+        <h2 class="display">Busca: <span class="q">${esc(q)}</span></h2>
+      </div>`;
+
+      hits.forEach(({ c, areas }) => {
+        const color = famColor(c.family);
+        html += `<section class="result-cat">
+          <div class="result-cat__head" data-id="${c.id}">
+            <span class="result-cat__dot" style="background:${color}"></span>
+            <h3>${highlight(c.name, q)}</h3>
+            <span class="c">${esc(c.nameEn)} · ${areas.length}</span>
+          </div>
+          <div class="areas">` +
+          areas.map((a)=>`<span class="area">${highlight(a.name, q)}</span>`).join("") +
+          `</div></section>`;
+      });
+
+      $content.innerHTML = html;
+      $content.querySelectorAll(".result-cat__head").forEach((h) =>
+        h.addEventListener("click", () => select(h.dataset.id)));
+    }
+
+    /* =========================================================
+       ROTEAMENTO / RENDER
+       ========================================================= */
+    function render() {
+      if (state.query) { renderResults(state.query); markActiveNav(); return; }
+      if (state.selected) {
+        const c = CATEGORIES.find((x) => x.id === state.selected);
+        if (c) { renderCategory(c); markActiveNav(); return; }
+      }
+      renderOverview();
+      markActiveNav();
+    }
+
+    function select(id) {
+      state.selected = id;
+      state.query = "";
+      $input.value = "";
+      $search.classList.remove("search--has-value");
+      if (location.hash !== "#" + id) history.pushState(null, "", "#" + id);
+      render();
+    }
+    function goOverview() {
+      state.selected = null;
+      if (location.hash) history.pushState(null, "", location.pathname);
+      render();
+    }
+
+    function prefersReduced() {
+      return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    }
+
+    /* ---------- busca (input) ---------- */
+    let t;
+    $input.addEventListener("input", () => {
+      const v = $input.value.trim();
+      $search.classList.toggle("search--has-value", v.length > 0);
+      clearTimeout(t);
+      t = setTimeout(() => { state.query = v; render(); }, 90);
+    });
+    $clear.addEventListener("click", () => {
+      $input.value = ""; state.query = "";
+      $search.classList.remove("search--has-value");
+      $input.focus(); render();
+    });
+    // tecla "/" foca a busca
+    document.addEventListener("keydown", (e) => {
+      if (e.key === "/" && document.activeElement !== $input) { e.preventDefault(); $input.focus(); }
+      if (e.key === "Escape" && document.activeElement === $input && $input.value) {
+        $input.value=""; state.query=""; $search.classList.remove("search--has-value"); render();
+      }
+    });
+
+    /* ---------- hash inicial / voltar do navegador ---------- */
+    function fromHash() {
+      const id = decodeURIComponent(location.hash.replace(/^#/, ""));
+      state.selected = CATEGORIES.some((c) => c.id === id) ? id : null;
+    }
+    window.addEventListener("popstate", () => { fromHash(); render(); });
+
+    /* ---------- start ---------- */
+    renderNav();
+    fromHash();
+    render();
+  })();
+  </script>
+</body>
+</html>
