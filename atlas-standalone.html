@@ -1273,21 +1273,21 @@ const CATEGORIES = [
 
       document.getElementById("back").addEventListener("click", goOverview);
 
-      // cada item (área, habilidade, ferramenta) abre sua descrição — ou [Em Construção]
+      // cada item (área, habilidade, ferramenta) abre sua descrição
+      attachChipExpand((btn) => groups[btn.dataset.g][+btn.dataset.i]);
+    }
+
+    // torna cada .chip de $content clicável: abre/fecha sua descrição (ou [Em Construção])
+    function attachChipExpand(getItem) {
       $content.querySelectorAll(".chip").forEach((btn) => {
         btn.addEventListener("click", () => {
           const open = btn.classList.toggle("is-open");
           const next = btn.nextElementSibling;
           if (open) {
-            const it = groups[btn.dataset.g][+btn.dataset.i];
+            const it = getItem(btn) || {};
             const d = document.createElement("div");
-            if (it.desc) {
-              d.className = "chip-desc";
-              d.textContent = it.desc;
-            } else {
-              d.className = "chip-desc chip-desc--wip";
-              d.textContent = "[Em Construção]";
-            }
+            if (it.desc) { d.className = "chip-desc"; d.textContent = it.desc; }
+            else { d.className = "chip-desc chip-desc--wip"; d.textContent = "[Em Construção]"; }
             btn.after(d);
           } else if (next && next.classList.contains("chip-desc")) {
             next.remove();
@@ -1335,12 +1335,16 @@ const CATEGORIES = [
         <h2 class="display">Busca: <span class="q">${esc(q)}</span></h2>
       </div>`;
 
-      const group = (label, items, cls) => items.length
-        ? `<div class="result-group"><span class="result-group__label">${label}</span>` +
-          `<div class="${cls.startsWith("pill") ? "pills" : "areas"}">` +
-          items.map((it)=>`<span class="${cls}">${highlight(it.name, q)}</span>`).join("") +
-          `</div></div>`
-        : "";
+      const flatItems = [];
+      const group = (label, items, cls) => {
+        if (!items.length) return "";
+        const chips = items.map((it) => {
+          const ref = flatItems.push(it) - 1;
+          return `<button class="${cls} chip" data-ref="${ref}">${highlight(it.name, q)}</button>`;
+        }).join("");
+        const container = cls.startsWith("pill") ? "pills" : "areas";
+        return `<div class="result-group"><span class="result-group__label">${label}</span><div class="${container}">${chips}</div></div>`;
+      };
 
       hits.forEach(({ c, areas, skills, software, count }) => {
         const color = famColor(c.family);
@@ -1359,6 +1363,7 @@ const CATEGORIES = [
       $content.innerHTML = html;
       $content.querySelectorAll(".result-cat__head").forEach((h) =>
         h.addEventListener("click", () => select(h.dataset.id)));
+      attachChipExpand((btn) => flatItems[+btn.dataset.ref]);
     }
 
     /* =========================================================
