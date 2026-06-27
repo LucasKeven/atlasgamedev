@@ -263,8 +263,6 @@
           }
         });
       });
-
-      window.scrollTo({ top: 0, behavior: prefersReduced() ? "auto" : "smooth" });
     }
 
     function section(label, count, inner) {
@@ -346,10 +344,6 @@
       state.selected = null;
       if (location.hash) history.pushState(null, "", location.pathname);
       render();
-    }
-
-    function prefersReduced() {
-      return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     }
 
     /* ---------- busca (input) ---------- */
