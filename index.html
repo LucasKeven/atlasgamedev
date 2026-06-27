@@ -277,21 +277,24 @@
        ========================================================= */
     function renderResults(q) {
       const nq = norm(q);
+      const n0 = (it) => typeof it === "string" ? { name: it } : it;
       const hits = [];
       CATEGORIES.forEach((c) => {
-        const nameMatch = norm(c.name).includes(nq) || norm(c.nameEn).includes(nq);
-        const areas = c.areas.filter((a) => norm(a.name).includes(nq));
-        if (nameMatch || areas.length) {
-          hits.push({ c, areas: areas.length ? areas : c.areas, nameMatch });
-        }
+        const nameMatch = norm(c.name).includes(nq) || norm(c.nameEn).includes(nq)
+          || (c.aka && norm(c.aka).includes(nq));
+        const areas    = c.areas.map(n0).filter((a) => norm(a.name).includes(nq));
+        const skills   = (c.skills   || []).map(n0).filter((s) => norm(s.name).includes(nq));
+        const software = (c.software || []).map(n0).filter((s) => norm(s.name).includes(nq));
+        const count = areas.length + skills.length + software.length;
+        if (nameMatch || count) hits.push({ c, areas, skills, software, count });
       });
 
-      const totalHits = hits.reduce((s,h)=>s+h.areas.length,0);
+      const totalHits = hits.reduce((s,h)=>s+h.count,0);
 
       if (!hits.length) {
         $content.innerHTML = `<div class="empty">
           <b>Nada encontrado</b>
-          Nenhuma área ou termo corresponde a “${esc(q)}”. Tente outro termo.
+          Nenhuma área, habilidade ou ferramenta corresponde a “${esc(q)}”. Tente outro termo.
         </div>`;
         return;
       }
@@ -301,17 +304,25 @@
         <h2 class="display">Busca: <span class="q">${esc(q)}</span></h2>
       </div>`;
 
-      hits.forEach(({ c, areas }) => {
+      const group = (label, items, cls) => items.length
+        ? `<div class="result-group"><span class="result-group__label">${label}</span>` +
+          `<div class="${cls.startsWith("pill") ? "pills" : "areas"}">` +
+          items.map((it)=>`<span class="${cls}">${highlight(it.name, q)}</span>`).join("") +
+          `</div></div>`
+        : "";
+
+      hits.forEach(({ c, areas, skills, software, count }) => {
         const color = famColor(c.family);
         html += `<section class="result-cat">
           <div class="result-cat__head" data-id="${c.id}">
             <span class="result-cat__dot" style="background:${color}"></span>
             <h3>${highlight(c.name, q)}</h3>
-            <span class="c">${esc(c.nameEn)} · ${areas.length}</span>
-          </div>
-          <div class="areas">` +
-          areas.map((a)=>`<span class="area">${highlight(a.name, q)}</span>`).join("") +
-          `</div></section>`;
+            <span class="c">${highlight(c.nameEn, q)}${count ? ` · ${count}` : ""}</span>
+          </div>` +
+          group("Áreas", areas, "area") +
+          group("Habilidades", skills, "pill") +
+          group("Ferramentas & Software", software, "pill pill--soft") +
+        `</section>`;
       });
 
       $content.innerHTML = html;
